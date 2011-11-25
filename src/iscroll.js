@@ -120,6 +120,10 @@ var m = Math,
 		// Set starting position
 		that.x = that.options.x;
 		that.y = that.options.y;
+		
+		// Set starting velocity
+		that.velocityX = 0;
+		that.velocityY = 0;
 
 		// Normalize options
 		that.options.useTransform = hasTransform ? that.options.useTransform : false;
@@ -539,8 +543,8 @@ iScroll.prototype = {
 		}
 
 		if (duration < 300 && that.options.momentum) {
-			momentumX = newPosX ? that._momentum(newPosX - that.startX, duration, -that.x, that.scrollerW - that.wrapperW + that.x, that.options.bounce ? that.wrapperW : 0) : momentumX;
-			momentumY = newPosY ? that._momentum(newPosY - that.startY, duration, -that.y, (that.maxScrollY < 0 ? that.scrollerH - that.wrapperH + that.y - that.minScrollY : 0), that.options.bounce ? that.wrapperH : 0) : momentumY;
+			momentumX = newPosX ? that._momentum(newPosX - that.startX, duration, -that.x, that.scrollerW - that.wrapperW + that.x, that.options.bounce ? that.wrapperW : 0, that.velocityX) : momentumX;
+			momentumY = newPosY ? that._momentum(newPosY - that.startY, duration, -that.y, (that.maxScrollY < 0 ? that.scrollerH - that.wrapperH + that.y - that.minScrollY : 0), that.options.bounce ? that.wrapperH : 0, that.velocityY) : momentumY;
 
 			newPosX = that.x + momentumX.dist;
 			newPosY = that.y + momentumY.dist;
@@ -723,20 +727,24 @@ iScroll.prototype = {
 
 		animate = function () {
 			var now = Date.now(),
-				newX, newY;
+				nowIncrement, newX, newY;
 
 			if (now >= startTime + step.time) {
 				that._pos(step.x, step.y);
 				that.animating = false;
+				that.velocityX = 0;
+				that.velocityY = 0;
 				if (that.options.onAnimationEnd) that.options.onAnimationEnd.call(that);			// Execute custom code on animation end
 				that._startAni();
 				return;
 			}
 
-			now = (now - startTime) / step.time - 1;
-			easeOut = m.sqrt(1 - now * now);
+			nowIncrement = (now - startTime) / step.time - 1;
+			easeOut = m.sqrt(1 - nowIncrement * nowIncrement);
 			newX = (step.x - startX) * easeOut + startX;
 			newY = (step.y - startY) * easeOut + startY;
+			that.velocityX = (newX - startX) / (now - starttime);
+			that.velocityY = (newY - startY) / (now - starttime);
 			that._pos(newX, newY);
 			if (that.animating) that.aniTime = nextFrame(animate);
 		};
@@ -751,9 +759,10 @@ iScroll.prototype = {
 		if (this.vScrollbar) this.vScrollbarIndicator.style[vendor + 'TransitionDuration'] = time;
 	},
 
-	_momentum: function (dist, time, maxDistUpper, maxDistLower, size) {
+	_momentum: function (dist, time, maxDistUpper, maxDistLower, size, velocity) {
 		var deceleration = 0.0006,
-			speed = m.abs(dist) / time,
+			addVelocity = (dist >0 && velocity >0) || (dist <0 && velocity <0)
+			speed = m.abs(dist) / time + (addVelocity ? velocity : 0),
 			newDist = (speed * speed) / (2 * deceleration),
 			newTime = 0, outsideDist = 0;
 
